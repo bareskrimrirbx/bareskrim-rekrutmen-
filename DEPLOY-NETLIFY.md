@@ -79,6 +79,10 @@ git push -u origin main
    | `JWT_SECRET` | string acak ≥32 karakter (contoh: `kodeacak:9f8a7s6d5f4g3h2j`) |
    | `DISCORD_WEBHOOK_URL` | URL webhook channel pusdik |
    | `DISCORD_BOT_NAME` | `Sistem Rekrutmen Bareskrim Polri` |
+   | `DISCORD_GUILD_ID` | ID server Discord (untuk link "Buka Channel") |
+   | `DISCORD_PUTUSAN_CHANNEL_ID` | (opsional) ID channel putusan — referensi tampilan |
+   | `DISCORD_BLACKLIST_POLRI_CHANNEL_ID` | (opsional) ID channel blacklist Polri |
+   | `DISCORD_BLACKLIST_PENDIDIKAN_CHANNEL_ID` | (opsional) ID channel blacklist Pendidikan |
    | `REQUIRED_GROUP_ID` | ID grup `[RI] Republic Indonesia` |
    | `REQUIRED_GROUP_NAME` | `[RI] Republic Indonesia` |
    | `POLICE_GROUP_ID` | ID grup Kepolisian |
@@ -149,6 +153,7 @@ Setelah site **Published**:
 | `PrismaClientInitializationError` | `DATABASE_URL` salah/tidak terisi. Cek env Netlify + `?sslmode=require`. |
 | Halaman admin "Database Belum Siap" | Klik **Initialize Database**, atau jalankan `prisma/init.sql` di Supabase SQL Editor. |
 | Discord tidak terkirim | Cek `DISCORD_WEBHOOK_URL` benar & webhook aktif di channel pusdik. |
+| Tombol "Buka Channel" admin mati | Cek `DISCORD_GUILD_ID` + `DISCORD_*_CHANNEL_ID` sudah diisi di Netlify. |
 | Semua logout tiba-tiba | `JWT_SECRET` berubah. Jangan regen setelah deploy. |
 
 ---

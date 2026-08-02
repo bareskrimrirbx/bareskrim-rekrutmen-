@@ -87,9 +87,9 @@ export interface ExamReportInput {
   details: GradedAnswerDetail[];
 }
 
-export async function sendDiscordExamReport(report: ExamReportInput): Promise<boolean> {
+export async function sendDiscordExamReport(report: ExamReportInput): Promise<string | null> {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) return false;
+  if (!webhookUrl) return null;
 
   const passed = report.status === "LULUS";
   const color = passed ? 0xd4af37 : 0x7b1113;
@@ -140,7 +140,13 @@ export async function sendDiscordExamReport(report: ExamReportInput): Promise<bo
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10_000);
   try {
-    const res = await fetch(webhookUrl, {
+    // ?wait=true WAJIB agar Discord mengembalikan objek pesan (berisi id-nya).
+    // Tanpa ini Discord membalas 204 No Content (body kosong) sehingga id pesan
+    // tidak bisa disimpan dan laporan tidak bisa dihapus nantinya.
+    const targetUrl = webhookUrl.includes("?")
+      ? `${webhookUrl}&wait=true`
+      : `${webhookUrl}?wait=true`;
+    const res = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -148,12 +154,56 @@ export async function sendDiscordExamReport(report: ExamReportInput): Promise<bo
     });
     if (!res.ok) {
       console.error("Discord webhook error", res.status, await res.text());
-      return false;
+      return null;
     }
-    return true;
+    const text = await res.text();
+    const data = text ? (JSON.parse(text) as { id?: string }) : null;
+    if (data?.id) {
+      console.log(`[discord-send] messageId=${data.id} (username=${report.username})`);
+    }
+    return data?.id ?? null;
   } catch (e) {
     console.error("Discord webhook failed", e);
-    return false;
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Hapus laporan yang sudah dikirim ke channel pusdik.
+// Dipanggil saat rekap nilai dihapus di panel admin.
+export interface DiscordDeleteResult {
+  ok: boolean;
+  status?: number;
+  note?: string;
+}
+
+export async function deleteDiscordExamReport(messageId: string): Promise<DiscordDeleteResult> {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl || !messageId) {
+    return { ok: false, note: "webhook URL atau message ID kosong" };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(`${webhookUrl}/messages/${messageId}`, {
+      method: "DELETE",
+      signal: controller.signal,
+    });
+    if (res.status === 204) return { ok: true, status: 204 };
+    if (res.status === 404) {
+      return {
+        ok: true,
+        status: 404,
+        note: "pesan tidak ditemukan (sudah terhapus, atau pesan dikirim oleh webhook lain)",
+      };
+    }
+    console.error("Discord delete error", res.status, await res.text());
+    return { ok: false, status: res.status };
+  } catch (e) {
+    console.error("Discord delete failed", e);
+    return { ok: false };
   } finally {
     clearTimeout(timer);
   }

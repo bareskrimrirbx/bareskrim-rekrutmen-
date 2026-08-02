@@ -6,7 +6,15 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
-export function ResultCard({ result, kkm }: { result: ResultPayload; kkm: number }) {
+export function ResultCard({
+  result,
+  kkm,
+  showAnswers = true,
+}: {
+  result: ResultPayload;
+  kkm: number;
+  showAnswers?: boolean;
+}) {
   const passed = result.passed;
   const details = result.answersJson;
 
@@ -60,88 +68,90 @@ export function ResultCard({ result, kkm }: { result: ResultPayload; kkm: number
         </div>
       </Card>
 
-      {/* Rekap jawaban */}
-      <div>
-        <h2 className="mb-3 font-display text-lg font-bold gold-text">Rekap Jawaban Anda</h2>
-        <div className="space-y-3">
-          {details.map((d, i) => (
-            <Card key={d.questionId} className="p-5">
-              <div className="flex items-start gap-3">
-                <span
-                  className={cn(
-                    "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                    d.isCorrect === true
-                      ? "bg-emerald-500/20 text-emerald-400"
-                      : d.isCorrect === false
-                        ? "bg-red-500/20 text-red-400"
-                        : "bg-gold/20 text-gold"
-                  )}
-                >
-                  {d.isCorrect === true ? "✓" : d.isCorrect === false ? "✕" : i + 1}
-                </span>
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-medium text-zinc-100">
-                      {i + 1}. {d.prompt}
-                    </p>
-                    <span className="shrink-0 text-xs text-zinc-500">{d.earned} poin</span>
-                  </div>
-
-                  {d.type === "MCQ" ? (
-                    <div className="mt-2 space-y-1 text-sm">
-                      <p className="text-zinc-400">
-                        Jawaban Anda:{" "}
-                        <span
-                          className={cn(
-                            "font-semibold",
-                            d.isCorrect ? "text-emerald-400" : "text-red-400"
-                          )}
-                        >
-                          {d.userAnswer ? `Opsi ${d.userAnswer}` : "Tidak dijawab"}
-                        </span>
+      {/* Rekap jawaban (hanya untuk tampilan dengan showAnswers) */}
+      {showAnswers && (
+        <div>
+          <h2 className="mb-3 font-display text-lg font-bold gold-text">Rekap Jawaban Anda</h2>
+          <div className="space-y-3">
+            {details.map((d, i) => (
+              <Card key={d.questionId} className="p-5">
+                <div className="flex items-start gap-3">
+                  <span
+                    className={cn(
+                      "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                      d.isCorrect === true
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : d.isCorrect === false
+                          ? "bg-red-500/20 text-red-400"
+                          : "bg-gold/20 text-gold"
+                    )}
+                  >
+                    {d.isCorrect === true ? "✓" : d.isCorrect === false ? "✕" : i + 1}
+                  </span>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm font-medium text-zinc-100">
+                        {i + 1}. {d.prompt}
                       </p>
-                      {d.correctKey && (
-                        <p className="text-zinc-500">
-                          Kunci jawaban: <span className="text-gold">Opsi {d.correctKey}</span>
-                        </p>
-                      )}
-                      <div className="mt-1.5 grid gap-1.5">
-                        {(d.options ?? []).map((o) => (
-                          <div
-                            key={o.key}
+                      <span className="shrink-0 text-xs text-zinc-500">{d.earned} poin</span>
+                    </div>
+
+                    {d.type === "MCQ" ? (
+                      <div className="mt-2 space-y-1 text-sm">
+                        <p className="text-zinc-400">
+                          Jawaban Anda:{" "}
+                          <span
                             className={cn(
-                              "rounded border px-3 py-1.5 text-xs",
-                              o.key === d.correctKey
-                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                                : o.key === d.userAnswer
-                                  ? "border-red-500/40 bg-red-500/10 text-red-300"
-                                  : "border-white/10 bg-white/5 text-zinc-400"
+                              "font-semibold",
+                              d.isCorrect ? "text-emerald-400" : "text-red-400"
                             )}
                           >
-                            <span className="font-mono font-bold">{o.key}.</span> {o.text}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-sm">
-                      <p className="whitespace-pre-wrap rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-zinc-300">
-                        {d.userAnswer || <span className="italic text-zinc-600">Kosong</span>}
-                      </p>
-                      {d.matchedKeywords && d.matchedKeywords.length > 0 && (
-                        <p className="mt-1.5 text-xs text-zinc-500">
-                          Kata kunci terdeteksi:{" "}
-                          <span className="text-gold">{d.matchedKeywords.join(", ")}</span>
+                            {d.userAnswer ? `Opsi ${d.userAnswer}` : "Tidak dijawab"}
+                          </span>
                         </p>
-                      )}
-                    </div>
-                  )}
+                        {d.correctKey && (
+                          <p className="text-zinc-500">
+                            Kunci jawaban: <span className="text-gold">Opsi {d.correctKey}</span>
+                          </p>
+                        )}
+                        <div className="mt-1.5 grid gap-1.5">
+                          {(d.options ?? []).map((o) => (
+                            <div
+                              key={o.key}
+                              className={cn(
+                                "rounded border px-3 py-1.5 text-xs",
+                                o.key === d.correctKey
+                                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                                  : o.key === d.userAnswer
+                                    ? "border-red-500/40 bg-red-500/10 text-red-300"
+                                    : "border-white/10 bg-white/5 text-zinc-400"
+                              )}
+                            >
+                              <span className="font-mono font-bold">{o.key}.</span> {o.text}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm">
+                        <p className="whitespace-pre-wrap rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-zinc-300">
+                          {d.userAnswer || <span className="italic text-zinc-600">Kosong</span>}
+                        </p>
+                        {d.matchedKeywords && d.matchedKeywords.length > 0 && (
+                          <p className="mt-1.5 text-xs text-zinc-500">
+                            Kata kunci terdeteksi:{" "}
+                            <span className="text-gold">{d.matchedKeywords.join(", ")}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-wrap gap-3 pb-10">
         <a href="/" className="flex-1">
@@ -149,9 +159,9 @@ export function ResultCard({ result, kkm }: { result: ResultPayload; kkm: number
             Kembali ke Beranda
           </Button>
         </a>
-        <a href="/login" className="flex-1">
+        <a href="/hasil" className="flex-1">
           <Button variant="gold" className="w-full">
-            Cek Status Lagi
+            Cek Hasil Lain
           </Button>
         </a>
       </div>

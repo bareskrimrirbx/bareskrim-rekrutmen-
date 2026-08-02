@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma, BlacklistCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { CONFIG } from "@/lib/constants";
 import {
@@ -11,12 +12,41 @@ import {
 } from "@/lib/roblox";
 import { createSessionCookie } from "@/lib/auth";
 import { ensureSchema } from "@/lib/init-schema";
+import { clientIp, verifyLimiter } from "@/lib/rate-limit";
 
 const VerifySchema = z.object({
   username: z.string().trim().min(2).max(40),
+  discordUsername: z.string().trim().min(2).max(40),
 });
 
+function rankBlockedResponse(rankName: string | null) {
+  const detected = rankName ? ` Pangkat terdeteksi: ${rankName}.` : "";
+  return NextResponse.json(
+    {
+      success: false,
+      code: "RANK_BLOCKED",
+      message:
+        `Akses ditolak: pangkat Anda di grup "${CONFIG.policeGroupName}" masih di bawah persyaratan minimal ` +
+        `(${CONFIG.minPoliceRankName}) untuk mengikuti ujian rekrutmen.${detected} ` +
+        "Silakan ajukan kenaikan pangkat terlebih dahulu, lalu coba lagi.",
+    },
+    { status: 403 }
+  );
+}
+
 export async function POST(req: Request) {
+  const limited = verifyLimiter.check(clientIp(req));
+  if (!limited.ok) {
+    return NextResponse.json(
+      {
+        success: false,
+        code: "INTERNAL",
+        message: `Terlalu banyak percobaan verifikasi. Coba lagi dalam ${limited.retryAfterSeconds} detik.`,
+      },
+      { status: 429 }
+    );
+  }
+
   const body = await req.json().catch(() => null);
   const parsed = VerifySchema.safeParse(body);
   if (!parsed.success) {
@@ -29,7 +59,43 @@ export async function POST(req: Request) {
   const username = parsed.data.username;
 
   try {
-    // 1) Resolve username -> Roblox ID + info
+    // 1) Cache verifikasi: user yang baru diverifikasi tidak perlu memanggil API
+    //    Roblox lagi (mencegah 429 rate-limit saat banyak login/akses berulang).
+    await ensureSchema();
+    const cached = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: "insensitive" } },
+    });
+    const CACHE_TTL_MS = 15 * 60_000;
+    if (cached && Date.now() - cached.updatedAt.getTime() < CACHE_TTL_MS) {
+      // Blokir pangkat dari snapshot (tanpa memanggil API Roblox lagi).
+      if (
+        cached.policeGroupRankNumber != null &&
+        cached.policeGroupRankNumber < CONFIG.minPoliceRank
+      ) {
+        return rankBlockedResponse(cached.policeGroupRank);
+      }
+      if (!cached.matraBlocked && cached.policeGroupRankNumber != null) {
+        await prisma.user.update({
+          where: { id: cached.id },
+          data: { discordUsername: parsed.data.discordUsername },
+        });
+        await createSessionCookie(cached.id, Number(cached.robloxId));
+        return NextResponse.json({
+          success: true,
+          user: {
+            robloxId: Number(cached.robloxId),
+            username: cached.username,
+            displayName: cached.displayName,
+            discordUsername: parsed.data.discordUsername,
+            avatarUrl: cached.avatarUrl,
+            policeGroupRank: cached.policeGroupRank,
+          },
+        });
+      }
+      // rankNumber null (user lama) / matraBlocked -> lanjut verifikasi penuh.
+    }
+
+    // 2) Resolve username -> Roblox ID + info
     const userInfo = await resolveUserByUsername(username);
     if (!userInfo) {
       return NextResponse.json(
@@ -38,7 +104,34 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2) Ambil keanggotaan grup + avatar
+    // 3) Auto-block blacklist (Polri & Pendidikan): tolak sebelum menyentuh
+    //     API Roblox lebih jauh. Bila tabel belum dibuat, lewati (tidak ada data).
+    try {
+      const blacklisted = await prisma.blacklistEntry.findFirst({
+        where: {
+          category: { in: [BlacklistCategory.POLRI, BlacklistCategory.PENDIDIKAN] },
+          username: { equals: userInfo.name, mode: "insensitive" },
+        },
+      });
+      if (blacklisted) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: "BLACKLISTED",
+            message:
+              "Akses ditolak: nama Anda terdaftar dalam daftar hitam (blacklist). " +
+              "Hubungi instruktur untuk keterangan lebih lanjut.",
+          },
+          { status: 403 }
+        );
+      }
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2021")) {
+        throw e;
+      }
+    }
+
+    // 4) Ambil keanggotaan grup + avatar
     const [groups, avatarUrl] = await Promise.all([
       getUserGroups(userInfo.id),
       getAvatarHeadshot(userInfo.id),
@@ -46,7 +139,7 @@ export async function POST(req: Request) {
 
     const isIn = (gid: number) => groups.some((g) => g.groupId === gid);
 
-    // 3) Cek grup wajib [RI] Republic Indonesia
+    // 5) Cek grup wajib [RI] Republic Indonesia
     if (!isIn(CONFIG.requiredGroupId)) {
       const detected = groups
         .slice(0, 30)
@@ -65,7 +158,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4) Cross-Group / Matra Check: tolak bila anggota grup matra lain (AD/AL)
+    // 6) Cross-Group / Matra Check: tolak bila anggota grup matra lain (AD/AL)
     const bannedFound = CONFIG.bannedGroupIds.filter(isIn);
     if (bannedFound.length > 0) {
       const bannedNames = CONFIG.bannedGroupNames.length
@@ -81,47 +174,58 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5) Pangkat di grup Kepolisian
+    // 7) Pangkat di grup Kepolisian
     const policeRole: RobloxGroupRole | undefined = groups.find(
       (g) => g.groupId === CONFIG.policeGroupId
     );
 
-    // 6) Upsert user + simpan snapshot keanggotaan
+    // 8) Upsert user + simpan snapshot keanggotaan
     await ensureSchema();
     const user = await prisma.user.upsert({
-      where: { robloxId: userInfo.id },
+      where: { robloxId: BigInt(userInfo.id) },
       update: {
         displayName: userInfo.displayName,
+        discordUsername: parsed.data.discordUsername,
         avatarUrl,
         profileUrl: profileUrl(userInfo.id),
-        policeGroupRankId: policeRole?.roleId ?? null,
+        policeGroupRankId: policeRole ? BigInt(policeRole.roleId) : null,
         policeGroupRank: policeRole?.roleName ?? null,
-        requiredGroupId: CONFIG.requiredGroupId,
+        policeGroupRankNumber: policeRole?.roleRank ?? null,
+        requiredGroupId: BigInt(CONFIG.requiredGroupId),
         bannedGroupIds: bannedFound,
         matraBlocked: bannedFound.length > 0,
       },
       create: {
-        robloxId: userInfo.id,
+        robloxId: BigInt(userInfo.id),
         username: userInfo.name,
         displayName: userInfo.displayName,
+        discordUsername: parsed.data.discordUsername,
         avatarUrl,
         profileUrl: profileUrl(userInfo.id),
-        policeGroupRankId: policeRole?.roleId ?? null,
+        policeGroupRankId: policeRole ? BigInt(policeRole.roleId) : null,
         policeGroupRank: policeRole?.roleName ?? null,
-        requiredGroupId: CONFIG.requiredGroupId,
+        policeGroupRankNumber: policeRole?.roleRank ?? null,
+        requiredGroupId: BigInt(CONFIG.requiredGroupId),
         bannedGroupIds: bannedFound,
         matraBlocked: bannedFound.length > 0,
       },
     });
 
-    await createSessionCookie(user.id, user.robloxId);
+    // 9) Blokir pangkat: di bawah minimal (Bhayangkara Kepala) => tidak bisa
+    //     mengikuti ujian. User tetap di-upsert agar blokir dilayani dari cache.
+    if (!policeRole || (policeRole.roleRank ?? 0) < CONFIG.minPoliceRank) {
+      return rankBlockedResponse(policeRole?.roleName ?? null);
+    }
+
+    await createSessionCookie(user.id, Number(user.robloxId));
 
     return NextResponse.json({
       success: true,
       user: {
-        robloxId: user.robloxId,
+        robloxId: Number(user.robloxId),
         username: user.username,
         displayName: user.displayName,
+        discordUsername: user.discordUsername,
         avatarUrl: user.avatarUrl,
         policeGroupRank: user.policeGroupRank,
       },
@@ -153,13 +257,14 @@ export async function POST(req: Request) {
     } else if (m.includes("429") || m.includes("Roblox API error")) {
       hint = " API Roblox sedang membatasi permintaan. Coba lagi nanti.";
     }
+    // Detail teknis HANYA dicatat di log server, tidak dikirim ke client.
+    console.error("verify detail", sanitized);
     return NextResponse.json(
       {
         success: false,
         code: "INTERNAL",
         build: "v5",
         message: `Terjadi kesalahan server. Coba lagi.${hint}`,
-        detail: sanitized,
       },
       { status: 500 }
     );

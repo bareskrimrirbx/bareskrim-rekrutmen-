@@ -77,17 +77,35 @@ function toSnapshot(q: Question, rng: () => number): SnapshotQuestion {
   };
 }
 
-// Bangun 15 MCQ + 5 Essay acak dari bank soal, dicampur urutannya, oleh seed periode.
+// Bangun 15 MCQ + 5 Essay acak dari bank soal, diurutkan MCQ dahulu lalu Essay.
+// - `seed` (periode): memilih SUBSET soal yang sama untuk semua casis (adil).
+// - `userSeed` (opsional, per username): mengacak URUTAN soal & posisi opsi
+//   berbeda tiap casis, sehingga jawaban tidak bisa dikomunikasikan antar user.
 export function buildQuestionSet(
   mcqs: Question[],
   essays: Question[],
-  seed: number
+  seed: number,
+  userSeed?: number
 ): SnapshotQuestion[] {
-  const rng = mulberry32(seed);
-  const mcqPick = seededShuffle(mcqs, rng).slice(0, CONFIG.mcqCount);
-  const essayPick = seededShuffle(essays, rng).slice(0, CONFIG.essayCount);
-  const all = [...mcqPick, ...essayPick];
-  return seededShuffle(all, rng).map((q) => toSnapshot(q, rng));
+  const pickRng = mulberry32(seed);
+  const mcqPick = seededShuffle(mcqs, pickRng).slice(0, CONFIG.mcqCount);
+  const essayPick = seededShuffle(essays, pickRng).slice(0, CONFIG.essayCount);
+
+  const rng = userSeed !== undefined ? mulberry32(userSeed) : pickRng;
+  const mcqOrdered = seededShuffle(mcqPick, rng);
+  const essayOrdered = seededShuffle(essayPick, rng);
+  const all = [...mcqOrdered, ...essayOrdered];
+  return all.map((q) => toSnapshot(q, rng));
+}
+
+// Hash string -> int 32-bit (deterministik). Dipakai membuat seed per username.
+export function hashString(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }
 
 export function sanitizeForClient(snapshot: SnapshotQuestion[]): ClientQuestion[] {

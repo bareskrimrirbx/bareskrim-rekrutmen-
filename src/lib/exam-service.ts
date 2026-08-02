@@ -7,6 +7,7 @@ import { CONFIG } from "@/lib/constants";
 import {
   buildQuestionSet,
   gradeExam,
+  hashString,
   sanitizeForClient,
   type ClientQuestion,
   type SnapshotQuestion,
@@ -16,12 +17,25 @@ import { ensureSchema } from "@/lib/init-schema";
 import type { User } from "@prisma/client";
 
 export type ExamSessionResult =
-  | { ok: true; attemptId: string; questions: ClientQuestion[]; period: { name: string; description: string | null } }
-  | { ok: false; code: "NO_ACTIVE_PERIOD" | "ALREADY_SUBMITTED"; message: string };
+  | { ok: true; attemptId: string; questions: ClientQuestion[]; remainingSeconds: number; period: { name: string; description: string | null } }
+  | { ok: false; code: "NO_ACTIVE_PERIOD" | "ALREADY_SUBMITTED" | "RANK_BLOCKED"; message: string };
 
 // Mulai / lanjutkan sesi ujian untuk user pada periode aktif
 export async function startExamSession(user: User): Promise<ExamSessionResult> {
   await ensureSchema();
+
+  // Gerbang pangkat: sesi lama yang pangkatnya kini di bawah minimal diblokir.
+  if (
+    user.policeGroupRankNumber != null &&
+    user.policeGroupRankNumber < CONFIG.minPoliceRank
+  ) {
+    return {
+      ok: false,
+      code: "RANK_BLOCKED",
+      message: `Akses ditolak: pangkat Anda di grup "${CONFIG.policeGroupName}" masih di bawah persyaratan minimal (${CONFIG.minPoliceRankName}). Silakan ajukan kenaikan pangkat terlebih dahulu.`,
+    };
+  }
+
   const period = await prisma.examPeriod.findFirst({
     where: { isActive: true },
     orderBy: { openedAt: "desc" },
@@ -35,24 +49,40 @@ export async function startExamSession(user: User): Promise<ExamSessionResult> {
     };
   }
 
-  const existing = await prisma.examAttempt.findUnique({
+  let existing = await prisma.examAttempt.findUnique({
     where: { attemptKey: `${period.id}_${user.id}` },
   });
 
+  // Auto-heal: attempt yang sudah submit tapi hasilnya dihapus admin
+  // (fitur "Hapus Rekap Nilai") tidak lagi memblokir; casis boleh mengulang.
   if (existing?.submittedAt) {
-    return {
-      ok: false,
-      code: "ALREADY_SUBMITTED",
-      message: "Anda sudah mengisi ujian pada periode ini. Hasil akan ditampilkan.",
-    };
+    const hasResult = await prisma.examResult.findUnique({
+      where: { attemptId: existing.id },
+    });
+    if (!hasResult) {
+      await prisma.examAttempt.delete({ where: { id: existing.id } });
+      existing = null;
+    } else {
+      return {
+        ok: false,
+        code: "ALREADY_SUBMITTED",
+        message: "Anda sudah mengisi ujian pada periode ini. Hasil akan ditampilkan.",
+      };
+    }
   }
 
-  // Lanjutkan percobaan yang belum selesai (misal halaman ter-refresh)
+  // Lanjutkan percobaan yang belum selesai (misal halaman ter-refresh).
+  // Waktu sisa dihitung dari server (attempt.startedAt) agar refresh
+  // tidak bisa me-reset timer.
   if (existing) {
+    const durationMs = CONFIG.examDurationMinutes * 60_000;
+    const elapsed = Date.now() - existing.startedAt.getTime();
+    const remainingSeconds = Math.max(0, Math.floor((durationMs - elapsed) / 1000));
     return {
       ok: true,
       attemptId: existing.id,
       questions: sanitizeForClient(existing.questionsJson as unknown as SnapshotQuestion[]),
+      remainingSeconds,
       period: { name: period.name, description: period.description },
     };
   }
@@ -70,7 +100,10 @@ export async function startExamSession(user: User): Promise<ExamSessionResult> {
     };
   }
 
-  const snapshot = buildQuestionSet(mcqs, essays, period.seed);
+  // Subset soal dipilih oleh seed periode (sama utk semua casis), tetapi
+  // urutan soal & posisi opsi diacak per username agar tiap casis berbeda.
+  const userSeed = hashString(`${period.id}:${user.id}`);
+  const snapshot = buildQuestionSet(mcqs, essays, period.seed, userSeed);
 
   const attempt = await prisma.examAttempt.create({
     data: {
@@ -85,6 +118,7 @@ export async function startExamSession(user: User): Promise<ExamSessionResult> {
     ok: true,
     attemptId: attempt.id,
     questions: sanitizeForClient(snapshot),
+    remainingSeconds: CONFIG.examDurationMinutes * 60,
     period: { name: period.name, description: period.description },
   };
 }
@@ -172,11 +206,13 @@ export async function submitExam(
     return created;
   });
 
-  // Kirim laporan real-time ke channel pusdik (tidak memblokir hasil)
-  void sendDiscordExamReport({
+  // Kirim laporan real-time ke channel pusdik & simpan ID pesan Discord agar
+  // bisa ikut terhapus saat rekap dihapus admin. (Gagal kirim tidak
+  // memengaruhi hasil ujian.)
+  const discordMessageId = await sendDiscordExamReport({
     username: attempt.user.username,
     displayName: attempt.user.displayName,
-    robloxId: attempt.user.robloxId,
+    robloxId: Number(attempt.user.robloxId),
     avatarUrl: attempt.user.avatarUrl,
     policeRank: attempt.user.policeGroupRank,
     score: graded.score,
@@ -187,6 +223,12 @@ export async function submitExam(
     periodName: attempt.period.name,
     details: graded.details,
   });
+  if (discordMessageId) {
+    await prisma.examResult.update({
+      where: { id: result.id },
+      data: { discordMessageId },
+    });
+  }
 
   return { ok: true, resultId: result.id };
 }

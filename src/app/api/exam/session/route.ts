@@ -31,5 +31,11 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json({ ok: true, attemptId: result.attemptId, questions: result.questions, period: result.period });
+  return NextResponse.json({
+    ok: true,
+    attemptId: result.attemptId,
+    questions: result.questions,
+    remainingSeconds: result.remainingSeconds,
+    period: result.period,
+  });
 }

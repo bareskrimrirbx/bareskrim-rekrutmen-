@@ -18,17 +18,27 @@ const statements: string[] = [
        CREATE TYPE "AttemptStatus" AS ENUM ('LULUS', 'TIDAK_LULUS');
      END IF;
    END $$;`,
+  `DO $$ BEGIN
+     IF to_regtype('"BlacklistCategory"') IS NULL THEN
+       CREATE TYPE "BlacklistCategory" AS ENUM ('POLRI', 'PENDIDIKAN');
+     END IF;
+   END $$;`,
+  `DO $$ BEGIN
+     IF to_regtype('"VerdictStatus"') IS NULL THEN
+       CREATE TYPE "VerdictStatus" AS ENUM ('LULUS', 'TIDAK_LULUS');
+     END IF;
+   END $$;`,
 
   // ===== User (Casis) =====
   `CREATE TABLE IF NOT EXISTS "User" (
      "id" TEXT NOT NULL,
-     "robloxId" INTEGER NOT NULL,
+     "robloxId" BIGINT NOT NULL,
      "username" TEXT NOT NULL,
      "displayName" TEXT NOT NULL,
      "avatarUrl" TEXT,
      "profileUrl" TEXT,
-     "requiredGroupId" INTEGER,
-     "policeGroupRankId" INTEGER,
+     "requiredGroupId" BIGINT,
+     "policeGroupRankId" BIGINT,
      "policeGroupRank" TEXT,
      "bannedGroupIds" JSONB,
      "matraBlocked" BOOLEAN NOT NULL DEFAULT false,
@@ -36,6 +46,11 @@ const statements: string[] = [
      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
      CONSTRAINT "User_pkey" PRIMARY KEY ("id")
    );`,
+
+  // Kolom tambahan (idempoten untuk DB yang sudah ada)
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "discordUsername" TEXT;`,
+  `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "policeGroupRankNumber" INTEGER;`,
+  `ALTER TABLE "ExamResult" ADD COLUMN IF NOT EXISTS "discordMessageId" TEXT;`,
 
   // ===== Periode Rekrutmen =====
   `CREATE TABLE IF NOT EXISTS "ExamPeriod" (
@@ -106,6 +121,26 @@ const statements: string[] = [
      CONSTRAINT "ExamResult_attemptId_fkey" FOREIGN KEY ("attemptId") REFERENCES "ExamAttempt"("id") ON DELETE CASCADE ON UPDATE CASCADE
    );`,
 
+  // ===== Daftar Hitam (Blacklist Polri / Pendidikan) =====
+  `CREATE TABLE IF NOT EXISTS "BlacklistEntry" (
+     "id" TEXT NOT NULL,
+     "category" "BlacklistCategory" NOT NULL,
+     "username" TEXT NOT NULL,
+     "reason" TEXT,
+     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     CONSTRAINT "BlacklistEntry_pkey" PRIMARY KEY ("id")
+   );`,
+
+  // ===== Putusan Sidang =====
+  `CREATE TABLE IF NOT EXISTS "VerdictEntry" (
+     "id" TEXT NOT NULL,
+     "username" TEXT NOT NULL,
+     "status" "VerdictStatus" NOT NULL,
+     "note" TEXT,
+     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     CONSTRAINT "VerdictEntry_pkey" PRIMARY KEY ("id")
+   );`,
+
   // ===== Index Unik =====
   `CREATE UNIQUE INDEX IF NOT EXISTS "User_robloxId_key" ON "User"("robloxId");`,
   `CREATE UNIQUE INDEX IF NOT EXISTS "User_username_key" ON "User"("username");`,
@@ -121,14 +156,26 @@ const statements: string[] = [
   `CREATE INDEX IF NOT EXISTS "ExamResult_submittedAt_idx" ON "ExamResult"("submittedAt");`,
   `CREATE INDEX IF NOT EXISTS "ExamPeriod_isActive_idx" ON "ExamPeriod"("isActive");`,
   `CREATE INDEX IF NOT EXISTS "Question_type_isActive_idx" ON "Question"("type", "isActive");`,
+  `CREATE INDEX IF NOT EXISTS "BlacklistEntry_category_idx" ON "BlacklistEntry"("category");`,
+  `CREATE INDEX IF NOT EXISTS "BlacklistEntry_username_idx" ON "BlacklistEntry"("username");`,
+  `CREATE INDEX IF NOT EXISTS "VerdictEntry_username_idx" ON "VerdictEntry"("username");`,
 ];
 
 export async function schemaExists(): Promise<boolean> {
   try {
     const rows = await prisma.$queryRawUnsafe(
-      `SELECT EXISTS (
-         SELECT 1 FROM information_schema.tables
-         WHERE table_schema = 'public' AND table_name = 'ExamResult'
+      `SELECT (
+         (SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_name IN ('ExamResult', 'BlacklistEntry', 'VerdictEntry')) = 3
+         AND
+         (SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'User' AND column_name IN ('discordUsername', 'policeGroupRankNumber')) = 2
+         AND
+         (SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'ExamResult' AND column_name = 'discordMessageId') = 1
        ) AS ok`
     );
     return (rows as Array<{ ok: boolean }>)[0]?.ok === true;

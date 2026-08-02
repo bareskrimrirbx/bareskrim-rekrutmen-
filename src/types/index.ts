@@ -9,12 +9,15 @@ export interface VerifyResponse {
     | "USER_NOT_FOUND"
     | "NOT_IN_REQUIRED_GROUP"
     | "MATRA_BLOCKED"
+    | "RANK_BLOCKED"
+    | "BLACKLISTED"
     | "INTERNAL";
   message?: string;
   user?: {
     robloxId: number;
     username: string;
     displayName: string;
+    discordUsername?: string | null;
     avatarUrl: string | null;
     policeGroupRank: string | null;
   };
@@ -22,10 +25,11 @@ export interface VerifyResponse {
 
 export interface SessionApiResponse {
   ok: boolean;
-  code?: "NO_ACTIVE_PERIOD" | "ALREADY_SUBMITTED" | "UNAUTHORIZED";
+  code?: "NO_ACTIVE_PERIOD" | "ALREADY_SUBMITTED" | "RANK_BLOCKED" | "UNAUTHORIZED";
   message?: string;
   attemptId?: string;
   questions?: ClientQuestion[];
+  remainingSeconds?: number;
   period?: { name: string; description: string | null };
 }
 

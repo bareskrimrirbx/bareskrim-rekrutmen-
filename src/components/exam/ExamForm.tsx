@@ -14,11 +14,13 @@ export function ExamForm({
   questions,
   periodName,
   durationMinutes,
+  remainingSeconds,
 }: {
   attemptId: string;
   questions: ClientQuestion[];
   periodName: string;
   durationMinutes: number;
+  remainingSeconds?: number;
 }) {
   const router = useRouter();
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -28,6 +30,7 @@ export function ExamForm({
   const submittedRef = useRef(false);
 
   const durationSeconds = durationMinutes * 60;
+  const initialSeconds = remainingSeconds ?? durationSeconds;
 
   const answeredCount = useMemo(
     () => questions.filter((q) => (answers[q.id] ?? "").trim().length > 0).length,
@@ -91,7 +94,7 @@ export function ExamForm({
               />
             </div>
           </div>
-          <CountdownTimer seconds={durationSeconds} onExpire={onExpire} />
+          <CountdownTimer seconds={initialSeconds} onExpire={onExpire} />
         </div>
       </Card>
 

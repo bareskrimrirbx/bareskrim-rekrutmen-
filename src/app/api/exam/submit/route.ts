@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { submitExam } from "@/lib/exam-service";
+import { clientIp, submitLimiter } from "@/lib/rate-limit";
 
 const SubmitSchema = z.object({
   attemptId: z.string().min(1),
@@ -9,6 +10,18 @@ const SubmitSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const limited = submitLimiter.check(clientIp(req));
+  if (!limited.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "INVALID",
+        message: `Terlalu banyak percobaan submit. Coba lagi dalam ${limited.retryAfterSeconds} detik.`,
+      },
+      { status: 429 }
+    );
+  }
+
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json(

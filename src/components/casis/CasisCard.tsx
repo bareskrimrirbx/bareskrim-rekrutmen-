@@ -35,6 +35,10 @@ export function CasisCard({
           <span className="font-mono text-sm text-zinc-200">{user.robloxId}</span>
         </div>
         <div className="flex items-center justify-between">
+          <span className="text-sm text-zinc-400">Discord</span>
+          <span className="font-mono text-sm text-zinc-200">{user.discordUsername ?? "-"}</span>
+        </div>
+        <div className="flex items-center justify-between">
           <span className="text-sm text-zinc-400">Pangkat Grup Kepolisian</span>
           <Badge tone="gold">{user.policeGroupRank ?? "Belum terdeteksi"}</Badge>
         </div>

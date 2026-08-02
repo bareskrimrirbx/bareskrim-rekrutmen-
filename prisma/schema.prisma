@@ -8,7 +8,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://postgres:bareskrim2026@db.hbucvppcbdotnhlzwasi.supabase.co:5432/postgres?sslmode=require"
+  url      = env("DATABASE_URL")
 }
 
 enum QuestionType {
@@ -21,21 +21,32 @@ enum AttemptStatus {
   TIDAK_LULUS
 }
 
+enum BlacklistCategory {
+  POLRI
+  PENDIDIKAN
+}
+
+enum VerdictStatus {
+  LULUS
+  TIDAK_LULUS
+}
+
 // ------------------------------------------------------------
 // Casis / Peserta (teridentifikasi dari Roblox ID)
 // ------------------------------------------------------------
 model User {
-  id            String   @id @default(cuid())
-  robloxId      Int      @unique
-  username      String   @unique
-  displayName   String
-  avatarUrl     String?
-  profileUrl    String?
-
+  id              String   @id @default(cuid())
+  robloxId        BigInt   @unique
+  username        String   @unique
+  displayName     String
+  discordUsername String?
+  avatarUrl       String?
+  profileUrl      String?
   // Snapshot keanggotaan dari verifikasi Roblox terakhir
-  requiredGroupId    Int?
-  policeGroupRankId  Int?
+  requiredGroupId    BigInt?
+  policeGroupRankId  BigInt?
   policeGroupRank    String? // nama role di grup Kepolisian, mis. "BRIGADIR POLISI"
+  policeGroupRankNumber Int? // urutan pangkat numerik di grup (untuk gerbang rank minimal)
   bannedGroupIds     Json? // array Int dari grup matra terlarang (jika tidak kosong => diblokir)
   matraBlocked       Boolean @default(false)
 
@@ -133,18 +144,47 @@ model ExamAnswer {
 // Hasil Ujian (nilai akhir + status KKM)
 // ------------------------------------------------------------
 model ExamResult {
-  id          String        @id @default(cuid())
-  attemptId   String        @unique
-  score       Int
-  maxScore    Int
-  mcqScore    Int
-  essayScore  Int
-  status      AttemptStatus
-  passed      Boolean
-  answersJson Json // rekap detail jawaban + penilaian (untuk Discord & halaman hasil)
-  submittedAt DateTime      @default(now())
+  id              String        @id @default(cuid())
+  attemptId       String        @unique
+  score           Int
+  maxScore        Int
+  mcqScore        Int
+  essayScore      Int
+  status          AttemptStatus
+  passed          Boolean
+  answersJson     Json // rekap detail jawaban + penilaian (untuk Discord & halaman hasil)
+  discordMessageId String? // ID pesan Discord webhook, agar bisa dihapus bersama rekap
+  submittedAt     DateTime      @default(now())
 
   attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
   @@index([submittedAt])
+}
+
+// ------------------------------------------------------------
+// Daftar Hitam (Blacklist Polri / Pendidikan)
+// Pengganti pembacaan channel Discord; dikelola via panel admin.
+// ------------------------------------------------------------
+model BlacklistEntry {
+  id        String           @id @default(cuid())
+  category  BlacklistCategory
+  username  String
+  reason    String?
+  createdAt DateTime         @default(now())
+
+  @@index([category])
+  @@index([username])
+}
+
+// ------------------------------------------------------------
+// Putusan Sidang (informasional, tidak memblokir otomatis)
+// ------------------------------------------------------------
+model VerdictEntry {
+  id        String        @id @default(cuid())
+  username  String
+  status    VerdictStatus
+  note      String?
+  createdAt DateTime      @default(now())
+
+  @@index([username])
 }
