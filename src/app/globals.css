@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --crimson: #7b1113;
+  --gold: #d4af37;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply font-body text-zinc-100 antialiased;
+  background-color: #140507;
+  background-image:
+    radial-gradient(1100px 600px at 50% -5%, rgba(123, 17, 19, 0.5), transparent 60%),
+    radial-gradient(900px 700px at 100% 100%, rgba(212, 175, 55, 0.07), transparent 60%),
+    linear-gradient(180deg, #1a080a 0%, #140507 40%, #0c0304 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Glassmorphism */
+.glass {
+  @apply border border-white/10 bg-white/5 backdrop-blur-xl;
+}
+
+.glass-strong {
+  @apply border border-white/15 bg-[#1c0c0e]/70 backdrop-blur-2xl;
+}
+
+/* Teks gradasi emas */
+.gold-text {
+  background: linear-gradient(120deg, #f2d98b, #d4af37 45%, #9a7b1e 75%, #f2d98b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Garis emas dekoratif */
+.gold-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.7), transparent);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #140507;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(#7b1113, #d4af37);
+  border-radius: 8px;
+}
+
+/* Pattern polisi samar */
+.chequered {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.03) 0 12px,
+    transparent 12px 24px
+  );
+}

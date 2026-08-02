@@ -1,0 +1,57 @@
+import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/auth";
+import { startExamSession } from "@/lib/exam-service";
+import { CONFIG } from "@/lib/constants";
+import { ExamForm } from "@/components/exam/ExamForm";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import Link from "next/link";
+
+export const metadata = { title: "Ujian - Rekrutmen Bareskrim Polri RP" };
+
+export default async function ExamPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  if (user.matraBlocked) redirect("/tolak");
+
+  const session = await startExamSession(user);
+
+  if (!session.ok) {
+    if (session.code === "ALREADY_SUBMITTED") {
+      redirect("/hasil");
+    }
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center px-4">
+        <Card strong className="w-full max-w-md p-8 text-center">
+          <div className="text-4xl">🕐</div>
+          <h1 className="mt-4 font-display text-xl font-bold gold-text">Ujian Belum Tersedia</h1>
+          <p className="mt-3 text-sm text-zinc-400">{session.message}</p>
+          <Link href="/" className="mt-6 inline-block">
+            <Button variant="ghost">Kembali ke Beranda</Button>
+          </Link>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-hero-radial min-h-[70vh] px-4 py-8">
+      <div className="mb-8 text-center">
+        <h1 className="font-display text-2xl font-bold gold-text md:text-3xl">
+          UJIAN REKRUTMEN BARESKRIM POLRI
+        </h1>
+        <p className="mt-2 text-sm text-zinc-400">
+          Halo, <span className="font-semibold text-gold">{user.displayName}</span> — selamat
+          mengerjakan. Semua jawaban dinilai otomatis di server.
+        </p>
+      </div>
+      <ExamForm
+        attemptId={session.attemptId}
+        questions={session.questions}
+        periodName={session.period.name}
+        durationMinutes={CONFIG.examDurationMinutes}
+      />
+    </div>
+  );
+}

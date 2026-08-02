@@ -1,0 +1,152 @@
+// ============================================================
+// Database Schema - Sistem Rekrutmen Bareskrim Polri Roblox
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum QuestionType {
+  MCQ
+  ESSAY
+}
+
+enum AttemptStatus {
+  LULUS
+  TIDAK_LULUS
+}
+
+// ------------------------------------------------------------
+// Casis / Peserta (teridentifikasi dari Roblox ID)
+// ------------------------------------------------------------
+model User {
+  id            String   @id @default(cuid())
+  robloxId      Int      @unique
+  username      String   @unique
+  displayName   String
+  avatarUrl     String?
+  profileUrl    String?
+
+  // Snapshot keanggotaan dari verifikasi Roblox terakhir
+  requiredGroupId    Int?
+  policeGroupRankId  Int?
+  policeGroupRank    String? // nama role di grup Kepolisian, mis. "BRIGADIR POLISI"
+  bannedGroupIds     Json? // array Int dari grup matra terlarang (jika tidak kosong => diblokir)
+  matraBlocked       Boolean @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  attempts ExamAttempt[]
+  results  ExamResult[]
+
+  @@index([username])
+}
+
+// ------------------------------------------------------------
+// Periode Rekrutmen (reset & pengacakan soal antar periode)
+// ------------------------------------------------------------
+model ExamPeriod {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(false)
+  seed        Int      @unique // seed acak -> menentukan subset & urutan soal periode ini
+  openedAt    DateTime @default(now())
+  closedAt    DateTime?
+
+  attempts ExamAttempt[]
+  results  ExamResult[]
+
+  @@index([isActive])
+}
+
+// ------------------------------------------------------------
+// Bank Soal (sumber soal; periode baru mengambil subset acak)
+// ------------------------------------------------------------
+model Question {
+  id          String       @id @default(cuid())
+  type        QuestionType
+  prompt      String
+  // MCQ : [{ "key": "A", "text": "..." }, ...] (kunci A-D)
+  // ESSAY: tidak digunakan
+  options     Json?
+  // Kunci jawaban benar (hanya MCQ)
+  correctKey  String?
+  // Nilai per soal
+  points      Int
+  // Kata kunci untuk auto-grading essay, mis. ["reserse", "kriminal"]
+  keywords    Json?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+
+  answers ExamAnswer[]
+
+  @@index([type, isActive])
+}
+
+// ------------------------------------------------------------
+// Percobaan Ujian (1x per periode per casis)
+// ------------------------------------------------------------
+model ExamAttempt {
+  id          String   @id @default(cuid())
+  periodId    String
+  userId      String
+  attemptKey  String   @unique // `${periodId}_${userId}` mencegah percobaan ganda
+  // Snapshot soal yang benar-benar disajikan ke casis (sudah diacak).
+  // Berisi correctKey/keywords utk grading SERVER-SIDE. TIDAK pernah dikirim ke client.
+  questionsJson Json
+  startedAt   DateTime @default(now())
+  submittedAt DateTime?
+
+  period ExamPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  answers ExamAnswer[]
+  result  ExamResult?
+
+  @@unique([periodId, userId])
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// Jawaban per soal (arsip & rekap untuk instruktur)
+// ------------------------------------------------------------
+model ExamAnswer {
+  id           String   @id @default(cuid())
+  attemptId    String
+  questionId   String
+  answer       String // jawaban terpilih (kunci MCQ) atau teks essay
+  isCorrect    Boolean?
+  earnedPoints Int?
+
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question   @relation(fields: [questionId], references: [id])
+
+  @@unique([attemptId, questionId])
+}
+
+// ------------------------------------------------------------
+// Hasil Ujian (nilai akhir + status KKM)
+// ------------------------------------------------------------
+model ExamResult {
+  id          String        @id @default(cuid())
+  attemptId   String        @unique
+  score       Int
+  maxScore    Int
+  mcqScore    Int
+  essayScore  Int
+  status      AttemptStatus
+  passed      Boolean
+  answersJson Json // rekap detail jawaban + penilaian (untuk Discord & halaman hasil)
+  submittedAt DateTime      @default(now())
+
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([submittedAt])
+}

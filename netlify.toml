@@ -1,0 +1,16 @@
+# ============================================================
+# Konfigurasi Deploy Netlify - Bareskrim Rekrutmen
+# ============================================================
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Pastikan prisma client ter-generate saat build
+  PRISMA_HIDE_UPDATE_MESSAGE = "true"
+
+# Plugin Next.js resmi Netlify (otomatis terpasang untuk app Next.js)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
