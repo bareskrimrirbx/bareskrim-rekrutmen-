@@ -55,11 +55,11 @@ function toSnapshot(q: Question, rng: () => number): SnapshotQuestion {
       type: "ESSAY",
       prompt: q.prompt,
       points: q.points,
-      keywords: (q.keywords as string[]) ?? [],
+      keywords: (q.keywords as unknown as string[]) ?? [],
     };
   }
 
-  const rawOptions = (q.options as Array<{ key: string; text: string }>) ?? [];
+  const rawOptions = (q.options as unknown as Array<{ key: string; text: string }>) ?? [];
   const shuffled = seededShuffle(rawOptions, rng);
   const presented: SnapshotOption[] = shuffled.map((opt, idx) => ({
     key: String.fromCharCode(65 + idx),

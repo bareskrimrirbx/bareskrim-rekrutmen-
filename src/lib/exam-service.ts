@@ -50,7 +50,7 @@ export async function startExamSession(user: User): Promise<ExamSessionResult> {
     return {
       ok: true,
       attemptId: existing.id,
-      questions: sanitizeForClient(existing.questionsJson as SnapshotQuestion[]),
+      questions: sanitizeForClient(existing.questionsJson as unknown as SnapshotQuestion[]),
       period: { name: period.name, description: period.description },
     };
   }
@@ -120,7 +120,7 @@ export async function submitExam(
     return { ok: false, code: "EXPIRED", message: "Waktu ujian telah habis." };
   }
 
-  const snapshot = attempt.questionsJson as SnapshotQuestion[];
+  const snapshot = attempt.questionsJson as unknown as SnapshotQuestion[];
   const validIds = new Set(snapshot.map((q) => q.id));
 
   // Validasi: hanya terima jawaban untuk soal dari snapshot periode ini
