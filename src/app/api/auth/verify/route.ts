@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     // 3) Cek grup wajib [RI] Republic Indonesia
     if (!isIn(CONFIG.requiredGroupId)) {
       const detected = groups
-        .slice(0, 10)
+        .slice(0, 30)
         .map((g) => `${g.groupName} (${g.groupId})`)
         .join(", ");
       return NextResponse.json(
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
           code: "NOT_IN_REQUIRED_GROUP",
           message:
             `Anda belum terdaftar di grup wajib "${CONFIG.requiredGroupName}" (ID: ${CONFIG.requiredGroupId}). ` +
-            `Grup yang terdeteksi oleh Roblox: ${detected || "tidak ada / kosong"}. ` +
+            `Total ${groups.length} grup terdeteksi oleh Roblox: ${detected || "tidak ada / kosong"}. ` +
             `Jika grup Anda ada di daftar itu, periksa REQUIRED_GROUP_ID di Netlify.`,
         },
         { status: 403 }
