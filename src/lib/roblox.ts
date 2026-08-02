@@ -18,7 +18,10 @@ export interface RobloxGroupRole {
   isPrimary: boolean;
 }
 
-const ROBLOX_HEADERS = { "Content-Type": "application/json" };
+const ROBLOX_HEADERS = {
+  "Content-Type": "application/json",
+  "User-Agent": "BareskrimRekrutmen/1.0 (roleplay-community)",
+};
 
 async function robloxFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
