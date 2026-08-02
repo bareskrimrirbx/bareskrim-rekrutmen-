@@ -43,7 +43,6 @@ model User {
   updatedAt   DateTime @updatedAt
 
   attempts ExamAttempt[]
-  results  ExamResult[]
 
   @@index([username])
 }
@@ -61,7 +60,6 @@ model ExamPeriod {
   closedAt    DateTime?
 
   attempts ExamAttempt[]
-  results  ExamResult[]
 
   @@index([isActive])
 }
