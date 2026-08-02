@@ -1,6 +1,7 @@
 import type { AttemptStatus } from "@prisma/client";
+import type { ClientQuestion } from "@/lib/grading";
 
-export type { ClientQuestion } from "@/lib/grading";
+export type { ClientQuestion };
 
 export interface VerifyResponse {
   success: boolean;
