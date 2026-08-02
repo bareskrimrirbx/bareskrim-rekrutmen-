@@ -5,14 +5,14 @@ export const CONFIG = {
   mcqPoints: Number(process.env.MCQ_POINTS ?? 4),
   essayPoints: Number(process.env.ESSAY_POINTS ?? 8),
   examDurationMinutes: Number(process.env.EXAM_DURATION_MINUTES ?? 30),
-  requiredGroupId: Number(process.env.REQUIRED_GROUP_ID ?? 0),
+  requiredGroupId: Number(process.env.REQUIRED_GROUP_ID ?? 11902409),
   requiredGroupName: process.env.REQUIRED_GROUP_NAME ?? "[RI] Republic Indonesia",
-  policeGroupId: Number(process.env.POLICE_GROUP_ID ?? 0),
+  policeGroupId: Number(process.env.POLICE_GROUP_ID ?? 14460225),
   policeGroupName: process.env.POLICE_GROUP_NAME ?? "Kepolisian",
   bannedGroupIds: (process.env.BANNED_GROUP_IDS ?? "")
     .split(",")
     .map((s) => Number(s.trim()))
-    .filter((n) => !Number.isNaN(n) && n > 0),
+    .filter((n) => !Number.isNaN(n) && n > 367050757,34766643),
   bannedGroupNames: (process.env.BANNED_GROUP_NAMES ?? "TNI AD,TNI AL")
     .split(",")
     .map((s) => s.trim())
