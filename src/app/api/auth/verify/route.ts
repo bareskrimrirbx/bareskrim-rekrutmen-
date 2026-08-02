@@ -128,28 +128,46 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     console.error("verify error", e);
+    const raw = e instanceof Error ? e.message : String(e);
+    const sanitized = sanitizeError(raw);
     let hint = "";
-    if (e instanceof Error) {
-      const msg = e.message;
-      if (msg.includes("DATABASE_URL")) {
-        hint = " DATABASE_URL belum diisi di Netlify.";
-      } else if (msg.includes("P2021")) {
-        hint = " Tabel database belum dibuat. Klik Initialize Database di /admin.";
-      } else if (msg.includes("P1001") || msg.includes("P1000")) {
-        hint = " Gagal konek ke database. Periksa DATABASE_URL.";
-      } else if (msg.includes("P1012")) {
-        hint = " Kesalahan konfigurasi database.";
-      } else if (msg.includes("429") || msg.includes("Roblox API error")) {
-        hint = " API Roblox sedang membatasi permintaan. Coba lagi nanti.";
-      }
+    const m = raw;
+    if (m.includes("DATABASE_URL")) {
+      hint = " DATABASE_URL belum diisi.";
+    } else if (m.includes("P2021")) {
+      hint = " Tabel database belum dibuat (auto-init gagal).";
+    } else if (m.includes("P1010") || m.includes("28P01") || /password|authentication/i.test(m)) {
+      hint = " Password database ditolak oleh Supabase.";
+    } else if (
+      m.includes("P1001") ||
+      m.includes("P1000") ||
+      m.includes("P1002") ||
+      m.includes("P1017") ||
+      m.includes("ECONNREFUSED") ||
+      m.includes("ETIMEDOUT") ||
+      m.includes("getaddrinfo")
+    ) {
+      hint = " Tidak bisa terhubung ke database Supabase.";
+    } else if (m.includes("P1012")) {
+      hint = " Kesalahan konfigurasi database.";
+    } else if (m.includes("429") || m.includes("Roblox API error")) {
+      hint = " API Roblox sedang membatasi permintaan. Coba lagi nanti.";
     }
     return NextResponse.json(
       {
         success: false,
         code: "INTERNAL",
+        build: "v5",
         message: `Terjadi kesalahan server. Coba lagi.${hint}`,
+        detail: sanitized,
       },
       { status: 500 }
     );
   }
+}
+
+function sanitizeError(msg: string): string {
+  return msg
+    .replace(/postgres(ql)?:\/\/[^@\s]+@/g, "postgresql://***:***@")
+    .slice(0, 500);
 }
