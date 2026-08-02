@@ -109,7 +109,7 @@ export async function sendDiscordExamReport(report: ExamReportInput): Promise<bo
     { name: "✍️ Nilai Essay", value: `${report.essayScore} poin`, inline: true },
   ];
 
-  const embeds = [
+  const embeds: Array<Record<string, unknown>> = [
     {
       title: "🧾 Laporan Hasil Ujian Rekrutmen Bareskrim Polri",
       color,
