@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 const COOKIE_NAME = "brk_token";
-const PROTECTED = ["/ujian", "/hasil", "/admin"];
 
 function getSecret(): Uint8Array {
   return new TextEncoder().encode(process.env.JWT_SECRET ?? "");
@@ -29,5 +28,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: PROTECTED,
+  matcher: ["/ujian", "/hasil", "/admin"],
 };

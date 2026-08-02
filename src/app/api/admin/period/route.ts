@@ -71,3 +71,7 @@ export async function GET(req: Request) {
     throw e;
   }
 }
+
+function isTableMissing(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2021";
+}
