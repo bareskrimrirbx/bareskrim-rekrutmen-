@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const BUILD_TAG = "v5";
+const BUILD_TAG = "v5";
 
 export async function GET() {
   let db: "ok" | "error" = "ok";
