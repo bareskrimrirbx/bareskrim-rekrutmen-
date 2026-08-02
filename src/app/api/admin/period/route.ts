@@ -3,11 +3,10 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { randomSeed } from "@/lib/utils";
+import { getAdminKey } from "@/lib/constants";
 
 function isAdmin(req: Request): boolean {
-  const key = process.env.ADMIN_KEY;
-  if (!key) return false;
-  return req.headers.get("x-admin-key") === key;
+  return req.headers.get("x-admin-key") === getAdminKey();
 }
 
 const OpenPeriodSchema = z.object({

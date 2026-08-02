@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { initSchema, schemaExists } from "@/lib/init-schema";
+import { getAdminKey } from "@/lib/constants";
 
 function isAdmin(req: Request): boolean {
-  const key = process.env.ADMIN_KEY;
-  if (!key) return false;
-  return req.headers.get("x-admin-key") === key;
+  return req.headers.get("x-admin-key") === getAdminKey();
 }
 
 // Cek status database (apakah tabel sudah dibuat)

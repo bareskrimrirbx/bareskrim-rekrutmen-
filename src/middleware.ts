@@ -1,16 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { getJwtSecret } from "@/lib/constants";
 
 const COOKIE_NAME = "brk_token";
 
 function getSecret(): Uint8Array {
-  return new TextEncoder().encode(process.env.JWT_SECRET ?? "");
+  return new TextEncoder().encode(getJwtSecret());
 }
 
 export async function middleware(req: NextRequest) {
   const token = req.cookies.get(COOKIE_NAME)?.value;
 
-  if (token && process.env.JWT_SECRET && process.env.JWT_SECRET.length >= 32) {
+  if (token && getJwtSecret().length >= 32) {
     try {
       const { payload } = await jwtVerify(token, getSecret());
       if (typeof payload.userId === "string") {

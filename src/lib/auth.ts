@@ -1,11 +1,12 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { getJwtSecret } from "@/lib/constants";
 
 const COOKIE_NAME = "brk_token";
 
 function getSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET;
+  const secret = getJwtSecret();
   if (!secret || secret.length < 32) {
     throw new Error("JWT_SECRET wajib diisi minimal 32 karakter (lihat .env)");
   }

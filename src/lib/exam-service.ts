@@ -12,6 +12,7 @@ import {
   type SnapshotQuestion,
 } from "@/lib/grading";
 import { sendDiscordExamReport } from "@/lib/discord";
+import { ensureSchema } from "@/lib/init-schema";
 import type { User } from "@prisma/client";
 
 export type ExamSessionResult =
@@ -20,6 +21,7 @@ export type ExamSessionResult =
 
 // Mulai / lanjutkan sesi ujian untuk user pada periode aktif
 export async function startExamSession(user: User): Promise<ExamSessionResult> {
+  await ensureSchema();
   const period = await prisma.examPeriod.findFirst({
     where: { isActive: true },
     orderBy: { openedAt: "desc" },
@@ -101,6 +103,7 @@ export async function submitExam(
   user: User,
   input: SubmitExamInput
 ): Promise<SubmitExamResult> {
+  await ensureSchema();
   const attempt = await prisma.examAttempt.findUnique({
     where: { id: input.attemptId },
     include: { user: true, period: true },

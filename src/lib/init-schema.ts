@@ -142,3 +142,25 @@ export async function initSchema(): Promise<void> {
     await prisma.$executeRawUnsafe(stmt);
   }
 }
+
+// Inisialisasi otomatis (lazy): hanya dijalankan saat tabel belum ada,
+// lalu di-memoize agar tidak membebani request berikutnya.
+let schemaReady = false;
+let schemaPromise: Promise<void> | null = null;
+
+export async function ensureSchema(): Promise<void> {
+  if (schemaReady) return;
+  if (!schemaPromise) {
+    schemaPromise = (async () => {
+      const exists = await schemaExists();
+      if (!exists) {
+        await initSchema();
+      }
+      schemaReady = true;
+    })().catch((e) => {
+      schemaPromise = null;
+      throw e;
+    });
+  }
+  return schemaPromise;
+}

@@ -10,6 +10,7 @@ import {
   type RobloxGroupRole,
 } from "@/lib/roblox";
 import { createSessionCookie } from "@/lib/auth";
+import { ensureSchema } from "@/lib/init-schema";
 
 const VerifySchema = z.object({
   username: z.string().trim().min(2).max(40),
@@ -86,6 +87,7 @@ export async function POST(req: Request) {
     );
 
     // 6) Upsert user + simpan snapshot keanggotaan
+    await ensureSchema();
     const user = await prisma.user.upsert({
       where: { robloxId: userInfo.id },
       update: {
@@ -126,8 +128,27 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     console.error("verify error", e);
+    let hint = "";
+    if (e instanceof Error) {
+      const msg = e.message;
+      if (msg.includes("DATABASE_URL")) {
+        hint = " DATABASE_URL belum diisi di Netlify.";
+      } else if (msg.includes("P2021")) {
+        hint = " Tabel database belum dibuat. Klik Initialize Database di /admin.";
+      } else if (msg.includes("P1001") || msg.includes("P1000")) {
+        hint = " Gagal konek ke database. Periksa DATABASE_URL.";
+      } else if (msg.includes("P1012")) {
+        hint = " Kesalahan konfigurasi database.";
+      } else if (msg.includes("429") || msg.includes("Roblox API error")) {
+        hint = " API Roblox sedang membatasi permintaan. Coba lagi nanti.";
+      }
+    }
     return NextResponse.json(
-      { success: false, code: "INTERNAL", message: "Terjadi kesalahan server. Coba lagi." },
+      {
+        success: false,
+        code: "INTERNAL",
+        message: `Terjadi kesalahan server. Coba lagi.${hint}`,
+      },
       { status: 500 }
     );
   }
